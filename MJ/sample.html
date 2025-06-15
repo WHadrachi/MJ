@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Interactive Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <!-- Add Chart.js DataLabels plugin for showing percentages -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .upload-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .file-upload {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .file-input-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .file-status {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .dashboard {
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+
+        .chart-container:hover {
+            transform: translateY(-5px);
+        }
+
+        .chart-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #444;
+            text-align: center;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            color: #e74c3c;
+            background: #ffeaea;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .success {
+            color: #27ae60;
+            background: #eafaf1;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #27ae60;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-container {
+                margin: 0 10px;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Interactive Excel Dashboard</h1>
+            <p>Upload your Excel file to generate beautiful, interactive charts</p>
+        </div>
+
+        <div class="upload-section">
+            <div class="file-upload">
+                <div class="file-input-wrapper">
+                    <input type="file" id="excelFile" class="file-input" accept=".xlsx,.xls" />
+                    <label for="excelFile" class="file-input-button">
+                        📁 Choose Excel File
+                    </label>
+                </div>
+                <div id="fileStatus" class="file-status">No file selected</div>
+            </div>
+        </div>
+
+        <div id="stats" class="stats-grid" style="display: none;"></div>
+        <div id="dashboard" class="dashboard"></div>
+    </div>
+
+    <script>
+        // Register the DataLabels plugin globally
+        Chart.register(ChartDataLabels);
+        
+        let excelData = {};
+        let charts = {};
+
+        document.getElementById('excelFile').addEventListener('change', handleFile);
+
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const fileStatus = document.getElementById('fileStatus');
+            fileStatus.innerHTML = '<div class="spinner"></div>Processing file...';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Process all sheets
+                    excelData = {};
+                    workbook.SheetNames.forEach(sheetName => {
+                        const worksheet = workbook.Sheets[sheetName];
+                        excelData[sheetName] = XLSX.utils.sheet_to_json(worksheet);
+                    });
+
+                    fileStatus.innerHTML = `✅ File loaded successfully! Found ${workbook.SheetNames.length} sheet(s): ${workbook.SheetNames.join(', ')}`;
+                    fileStatus.className = 'file-status success';
+                    
+                    generateDashboard();
+                } catch (error) {
+                    fileStatus.innerHTML = `❌ Error processing file: ${error.message}`;
+                    fileStatus.className = 'file-status error';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function generateDashboard() {
+            const dashboard = document.getElementById('dashboard');
+            const statsContainer = document.getElementById('stats');
+            
+            // Clear existing charts
+            Object.values(charts).forEach(chart => chart.destroy());
+            charts = {};
+            dashboard.innerHTML = '';
+            
+            // Generate statistics
+            generateStats(statsContainer);
+            
+            // Generate all charts
+            generateOutgoingPerMonth();
+            generateEntrantsPerMonth();
+            generateComparisonChart();
+            generateQualificationCharts();
+            generateVilleCharts();
+            generateMotifsChart();
+            
+            dashboard.style.display = 'grid';
+            statsContainer.style.display = 'grid';
+        }
+
+        function generateStats(container) {
+            container.innerHTML = '';
+            
+            const sortantsData = findDataBySheet(['Sortants', 'sortants', 'Outgoing', 'outgoing']);
+            const entrantsData = findDataBySheet(['Entrants', 'entrants', 'Incoming', 'incoming']);
+            
+            const stats = [
+                { label: 'Total Outgoing', value: sortantsData ? sortantsData.length : 0 },
+                { label: 'Total Entrants', value: entrantsData ? entrantsData.length : 0 },
+                { label: 'Data Sheets', value: Object.keys(excelData).length },
+                { label: 'Net Change', value: (entrantsData ? entrantsData.length : 0) - (sortantsData ? sortantsData.length : 0) }
+            ];
+
+            stats.forEach(stat => {
+                const card = document.createElement('div');
+                card.className = 'stat-card';
+                card.innerHTML = `
+                    <div class="stat-number">${stat.value}</div>
+                    <div class="stat-label">${stat.label}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function findDataBySheet(possibleNames) {
+            for (const name of possibleNames) {
+                if (excelData[name]) return excelData[name];
+            }
+            return null;
+        }
+
+        function extractMonthYear(dateString) {
+            if (!dateString) return 'Unknown';
+            
+            try {
+                let date;
+                if (typeof dateString === 'number') {
+                    // Excel serial date
+                    date = new Date((dateString - 25569) * 86400 * 1000);
+                } else {
+                    date = new Date(dateString);
+                }
+                
+                if (isNaN(date.getTime())) return 'Unknown';
+                
+                return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+            } catch {
+                return 'Unknown';
+            }
+        }
+
+        function generateOutgoingPerMonth() {
+            const data = findDataBySheet(['Sortants', 'sortants', 'Outgoing', 'outgoing']);
+            if (!data) return;
+
+            const monthCounts = {};
+            data.forEach(row => {
+                const dateFields = ['Date Sortie', 'Date_Sortie', 'Date', 'Exit Date', 'date_sortie'];
+                let dateValue = null;
+                
+                for (const field of dateFields) {
+                    if (row[field]) {
+                        dateValue = row[field];
+                        break;
+                    }
+                }
+                
+                const monthYear = extractMonthYear(dateValue);
+                monthCounts[monthYear] = (monthCounts[monthYear] || 0) + 1;
+            });
+
+            const sortedData = Object.entries(monthCounts).sort((a, b) => {
+                const dateA = new Date(a[0]);
+                const dateB = new Date(b[0]);
+                return dateA - dateB;
+            });
+
+            createChart('outgoing-month', 'Outgoing per Month', sortedData, 'line', '#e74c3c');
+        }
+
+        function generateEntrantsPerMonth() {
+            const data = findDataBySheet(['Entrants', 'entrants', 'Incoming', 'incoming']);
+            if (!data) return;
+
+            const monthCounts = {};
+            data.forEach(row => {
+                const dateFields = ['Date Entree', 'Date_Entree', 'Date', 'Entry Date', 'date_entree'];
+                let dateValue = null;
+                
+                for (const field of dateFields) {
+                    if (row[field]) {
+                        dateValue = row[field];
+                        break;
+                    }
+                }
+                
+                const monthYear = extractMonthYear(dateValue);
+                monthCounts[monthYear] = (monthCounts[monthYear] || 0) + 1;
+            });
+
+            const sortedData = Object.entries(monthCounts).sort((a, b) => {
+                const dateA = new Date(a[0]);
+                const dateB = new Date(b[0]);
+                return dateA - dateB;
+            });
+
+            createChart('entrants-month', 'Entrants per Month', sortedData, 'line', '#27ae60');
+        }
+
+        function generateComparisonChart() {
+            const entrantsData = findDataBySheet(['Entrants', 'entrants', 'Incoming', 'incoming']);
+            const sortantsData = findDataBySheet(['Sortants', 'sortants', 'Outgoing', 'outgoing']);
+            
+            if (!entrantsData && !sortantsData) return;
+
+            // Process entrants data
+            const entrantsMonthCounts = {};
+            if (entrantsData) {
+                entrantsData.forEach(row => {
+                    const dateFields = ['Date Entree', 'Date_Entree', 'Date', 'Entry Date', 'date_entree'];
+                    let dateValue = null;
+                    
+                    for (const field of dateFields) {
+                        if (row[field]) {
+                            dateValue = row[field];
+                            break;
+                        }
+                    }
+                    
+                    const monthYear = extractMonthYear(dateValue);
+                    entrantsMonthCounts[monthYear] = (entrantsMonthCounts[monthYear] || 0) + 1;
+                });
+            }
+
+            // Process sortants data
+            const sortantsMonthCounts = {};
+            if (sortantsData) {
+                sortantsData.forEach(row => {
+                    const dateFields = ['Date Sortie', 'Date_Sortie', 'Date', 'Exit Date', 'date_sortie'];
+                    let dateValue = null;
+                    
+                    for (const field of dateFields) {
+                        if (row[field]) {
+                            dateValue = row[field];
+                            break;
+                        }
+                    }
+                    
+                    const monthYear = extractMonthYear(dateValue);
+                    sortantsMonthCounts[monthYear] = (sortantsMonthCounts[monthYear] || 0) + 1;
+                });
+            }
+
+            // Combine all months and sort
+            const allMonths = new Set([
+                ...Object.keys(entrantsMonthCounts),
+                ...Object.keys(sortantsMonthCounts)
+            ]);
+
+            const sortedMonths = Array.from(allMonths)
+                .filter(month => month !== 'Unknown')
+                .sort((a, b) => {
+                    const dateA = new Date(a);
+                    const dateB = new Date(b);
+                    return dateA - dateB;
+                });
+
+            // Prepare data for comparison chart
+            const entrantsValues = sortedMonths.map(month => entrantsMonthCounts[month] || 0);
+            const sortantsValues = sortedMonths.map(month => sortantsMonthCounts[month] || 0);
+
+            createComparisonChart('entrants-sortants-comparison', 'Entrants vs Sortants per Month', 
+                               sortedMonths, entrantsValues, sortantsValues);
+        }
+
+        function generateQualificationCharts() {
+            // Entrants Qualification
+            const entrantsData = findDataBySheet(['Entrants', 'entrants', 'Incoming', 'incoming']);
+            if (entrantsData) {
+                const qualCounts = {};
+                entrantsData.forEach(row => {
+                    const qualFields = ['Qualification', 'qualification', 'Qual', 'Position'];
+                    let qual = 'Unknown';
+                    
+                    for (const field of qualFields) {
+                        if (row[field]) {
+                            qual = row[field];
+                            break;
+                        }
+                    }
+                    
+                    qualCounts[qual] = (qualCounts[qual] || 0) + 1;
+                });
+
+                const sortedData = Object.entries(qualCounts).sort((a, b) => b[1] - a[1]);
+                createChart('entrants-qualification', 'Professional Profiles of New Recruits', sortedData, 'pie', null, {
+                    showPercentages: true,
+                    gradient: true,
+                    borderWidth: 3
+                });
+            }
+
+            // Outgoing Qualification
+            const sortantsData = findDataBySheet(['Sortants', 'sortants', 'Outgoing', 'outgoing']);
+            if (sortantsData) {
+                const qualCounts = {};
+                sortantsData.forEach(row => {
+                    const qualFields = ['Qualification', 'qualification', 'Qual', 'Position'];
+                    let qual = 'Unknown';
+                    
+                    for (const field of qualFields) {
+                        if (row[field]) {
+                            qual = row[field];
+                            break;
+                        }
+                    }
+                    
+                    qualCounts[qual] = (qualCounts[qual] || 0) + 1;
+                });
+
+                const sortedData = Object.entries(qualCounts).sort((a, b) => b[1] - a[1]);
+                createChart('outgoing-qualification', 'Professional Profiles of Departing Staff', sortedData, 'pie', null, {
+                    showPercentages: true,
+                    gradient: true,
+                    borderWidth: 3
+                });
+            }
+        }
+
+        function generateVilleCharts() {
+            // Entrants Ville
+            const entrantsData = findDataBySheet(['Entrants', 'entrants', 'Incoming', 'incoming']);
+            if (entrantsData) {
+                const villeCounts = {};
+                entrantsData.forEach(row => {
+                    const villeFields = ['Ville', 'ville', 'City', 'Location'];
+                    let ville = 'Unknown';
+                    
+                    for (const field of villeFields) {
+                        if (row[field]) {
+                            ville = row[field];
+                            break;
+                        }
+                    }
+                    
+                    villeCounts[ville] = (villeCounts[ville] || 0) + 1;
+                });
+
+                const sortedData = Object.entries(villeCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                createChart('entrants-ville', 'Ville of Entrants (Top 10)', sortedData, 'bar', '#3498db');
+            }
+
+            // Outgoing Ville
+            const sortantsData = findDataBySheet(['Sortants', 'sortants', 'Outgoing', 'outgoing']);
+            if (sortantsData) {
+                const villeCounts = {};
+                sortantsData.forEach(row => {
+                    const villeFields = ['Ville', 'ville', 'City', 'Location'];
+                    let ville = 'Unknown';
+                    
+                    for (const field of villeFields) {
+                        if (row[field]) {
+                            ville = row[field];
+                            break;
+                        }
+                    }
+                    
+                    villeCounts[ville] = (villeCounts[ville] || 0) + 1;
+                });
+
+                const sortedData = Object.entries(villeCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                createChart('outgoing-ville', 'Ville of Outgoing (Top 10)', sortedData, 'bar', '#e67e22');
+            }
+        }
+
+        function generateMotifsChart() {
+            const data = findDataBySheet(['Sortants', 'sortants', 'Outgoing', 'outgoing']);
+            if (!data) return;
+
+            const motifCounts = {};
+            data.forEach(row => {
+                const motifFields = ['Motif', 'motif', 'Reason', 'Motifs', 'Exit Reason'];
+                let motif = 'Unknown';
+                
+                for (const field of motifFields) {
+                    if (row[field]) {
+                        motif = row[field];
+                        break;
+                    }
+                }
+                
+                // Split combined reasons if they contain separators
+                const motifs = motif.toString().split(/[,;|&]/).map(m => m.trim());
+                motifs.forEach(m => {
+                    if (m && m !== 'Unknown') {
+                        motifCounts[m] = (motifCounts[m] || 0) + 1;
+                    }
+                });
+            });
+
+            const sortedData = Object.entries(motifCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+            createChart('motifs-outgoing', 'Motifs of Outgoing (Top 8)', sortedData, 'doughnut');
+        }
+
+        function createChart(id, title, data, type, color = null, options = {}) {
+            const dashboard = document.getElementById('dashboard');
+            
+            const container = document.createElement('div');
+            container.className = 'chart-container';
+            container.innerHTML = `
+                <div class="chart-title">${title}</div>
+                <div class="chart-wrapper">
+                    <canvas id="${id}"></canvas>
+                </div>
+            `;
+            dashboard.appendChild(container);
+
+            const ctx = document.getElementById(id).getContext('2d');
+            
+            let chartConfig = {
+                type: type,
+                data: {
+                    labels: data.map(item => item[0]),
+                    datasets: [{
+                        label: title,
+                        data: data.map(item => item[1]),
+                        borderWidth: options.borderWidth || 2,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: type === 'pie' || type === 'doughnut' ? 'right' : 'top',
+                            labels: {
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                },
+                                padding: 15,
+                                usePointStyle: type === 'pie' || type === 'doughnut'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    
+                                    if (options.showPercentages && (type === 'pie' || type === 'doughnut')) {
+                                        return `${label}: ${value} (${percentage}%)`;
+                                    }
+                                    return `${label}: ${value}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Color schemes
+            if (type === 'pie' || type === 'doughnut') {
+                // Enhanced color palette for qualification charts
+                const baseColors = [
+                    '#4361ee', '#3a0ca3', '#7209b7', '#f72585', '#4cc9f0',
+                    '#4895ef', '#560bad', '#b5179e', '#f15bb5', '#00b4d8',
+                    '#0077b6', '#023e8a', '#0096c7', '#48cae4', '#90e0ef'
+                ];
+                
+                if (options.gradient) {
+                    // Create gradient fills for pie segments
+                    chartConfig.data.datasets[0].backgroundColor = data.map((_, index) => {
+                        const color = baseColors[index % baseColors.length];
+                        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                        gradient.addColorStop(0, color);
+                        gradient.addColorStop(1, lightenColor(color, 30));
+                        return gradient;
+                    });
+                } else {
+                    chartConfig.data.datasets[0].backgroundColor = baseColors.slice(0, data.length);
+                }
+                
+                // Add white borders between segments
+                chartConfig.data.datasets[0].borderColor = '#ffffff';
+                
+                // Add percentage labels if requested
+                if (options.showPercentages) {
+                    chartConfig.options.plugins.datalabels = {
+                        formatter: (value, ctx) => {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return percentage + '%';
+                        },
+                        color: '#fff',
+                        font: {
+                            weight: 'bold',
+                            size: 12
+                        }
+                    };
+                }
+            } else {
+                chartConfig.data.datasets[0].backgroundColor = color || '#667eea';
+                chartConfig.data.datasets[0].borderColor = color || '#667eea';
+                
+                if (type === 'line') {
+                    chartConfig.data.datasets[0].fill = false;
+                    chartConfig.data.datasets[0].backgroundColor = 'transparent';
+                }
+            }
+
+            // Helper function to lighten a color
+            function lightenColor(color, percent) {
+                const num = parseInt(color.replace('#', ''), 16);
+                const amt = Math.round(2.55 * percent);
+                const R = (num >> 16) + amt;
+                const G = (num >> 8 & 0x00FF) + amt;
+                const B = (num & 0x0000FF) + amt;
+                return '#' + (
+                    0x1000000 + 
+                    (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 + 
+                    (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 + 
+                    (B < 255 ? B < 1 ? 0 : B : 255)
+                ).toString(16).slice(1);
+            }
+
+            charts[id] = new Chart(ctx, chartConfig);
+        }
+
+        function createComparisonChart(id, title, labels, entrantsData, sortantsData) {
+            const dashboard = document.getElementById('dashboard');
+            
+            const container = document.createElement('div');
+            container.className = 'chart-container';
+            container.style.gridColumn = 'span 2'; // Make it span 2 columns for better visibility
+            container.innerHTML = `
+                <div class="chart-title">${title}</div>
+                <div class="chart-wrapper">
+                    <canvas id="${id}"></canvas>
+                </div>
+            `;
+            dashboard.appendChild(container);
+
+            const ctx = document.getElementById(id).getContext('2d');
+            
+            const chartConfig = {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Entrants',
+                            data: entrantsData,
+                            borderColor: '#27ae60',
+                            backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: '#27ae60',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        },
+                        {
+                            label: 'Sortants',
+                            data: sortantsData,
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: '#e74c3c',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#667eea',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                title: function(context) {
+                                    return `Month: ${context[0].label}`;
+                                },
+                                afterBody: function(context) {
+                                    const entrants = context.find(c => c.datasetIndex === 0)?.raw || 0;
+                                    const sortants = context.find(c => c.datasetIndex === 1)?.raw || 0;
+                                    const netChange = entrants - sortants;
+                                    return `Net Change: ${netChange >= 0 ? '+' : ''}${netChange}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: true,
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                display: true,
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            charts[id] = new Chart(ctx, chartConfig);
+        }
+    </script>
+</body>
+</html>
